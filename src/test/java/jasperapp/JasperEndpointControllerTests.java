@@ -22,8 +22,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -31,12 +33,16 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
+@TestPropertySource(properties = "reports.directory=/src/test/resources/")
 @AutoConfigureMockMvc
 public class JasperEndpointControllerTests {
 
@@ -54,10 +60,10 @@ public class JasperEndpointControllerTests {
             connection = dataSource.getConnection();
             try {
 
-                PreparedStatement cleanPreparedStatement = null;
-                PreparedStatement createPreparedStatement = null;
-                PreparedStatement insertPreparedStatement = null;
-                PreparedStatement selectPreparedStatement = null;
+                PreparedStatement cleanPreparedStatement;
+                PreparedStatement createPreparedStatement;
+                PreparedStatement insertPreparedStatement;
+                PreparedStatement selectPreparedStatement;
 
                 String CleanQuery = "DROP TABLE IF EXISTS PERSON";
                 String CreateQuery = "CREATE TABLE PERSON(id int primary key, name varchar(255))";
@@ -109,7 +115,65 @@ public class JasperEndpointControllerTests {
     @Test
     public void gettingReportsShouldReturnDefaultMessage() throws Exception {
 
-        this.mockMvc.perform(get("/reports/rpt_example/?format=pdf&personid=1")).andDo(print()).andExpect(status().isOk());
+        this.mockMvc.perform(get("/reports/rpt_example/?format=pdf&personid=1"))
+                .andDo(print())
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    public void gettingReportsShouldReturnTheCorrectFormat() throws Exception {
+        /* HTML */
+        this.mockMvc.perform(get("/reports/rpt_example/?format=html&personid=1"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/html"));
+
+        /* CSV */
+        this.mockMvc.perform(get("/reports/rpt_example/?format=csv&personid=1"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv"));
+
+        /* PDF */
+        this.mockMvc.perform(get("/reports/rpt_example/?format=pdf&personid=1"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"));
+
+        /* CSV */
+        this.mockMvc.perform(get("/reports/rpt_example/?format=xls&personid=1"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/vnd.ms-excel"));
+    }
+
+    @Test
+    public void gettingReportsShouldAcceptParameters() throws Exception {
+
+        /* Should select first person */
+
+        MvcResult mvcResult = this.mockMvc.perform(get("/reports/rpt_example/?format=csv&personid=1"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String content = mvcResult.getResponse().getContentAsString();
+
+        assertTrue(content.contains("Jose"));
+        assertFalse(content.contains("Obelix"));
+
+        /* Should select second person */
+
+        MvcResult mvcResult2 = this.mockMvc.perform(get("/reports/rpt_example/?format=csv&personid=2"))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String content2 = mvcResult2.getResponse().getContentAsString();
+
+        assertFalse(content2.contains("Jose"));
+        assertTrue(content2.contains("Obelix"));
+
     }
 
 
